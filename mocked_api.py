@@ -28,8 +28,8 @@ class Application(BaseModel):
 data = np.array([
     {
         "id": 1,
-        "telegram_id": "1234",
-        "discord_id": "4321",
+        "telegram_id": 1008218722,
+        "discord_id": 0,
         "email": "example@example.com",
         "phone": "+79001234567",
         "name": "Ivan",
@@ -58,9 +58,9 @@ def find_application(email, telegram_id, discord_id):
     if email:
         return [item for item in data if item['email'] == email]
     elif telegram_id:
-        return [item for item in data if item['telegram_id'] == telegram_id]
+        return [item for item in data if item['telegram_id'] == int(telegram_id)]
     elif discord_id:
-        return [item for item in data if item['discord_id'] == discord_id]
+        return [item for item in data if item['discord_id'] == int(discord_id)]
 
 def create_application(application):
     ids = [item['id'] for item in data]
@@ -83,13 +83,12 @@ app = FastAPI()
 async def get_application(email=None, telegram_id=None, discord_id=None) -> List[Application]:
     if not email and not telegram_id and not discord_id:
         raise HTTPException(status_code=400, detail="none of the parameters are specified")
-    return find_application(email, telegram_id, discord_id)
+    result = find_application(email, telegram_id, discord_id)
+    return result
 
 @app.post("/applications")
 async def post_application(application: Application) -> Application:
-    print(application)
     created_application = create_application(application)
-    print('created_application', created_application)
     return created_application
 
 @app.put("/applications")
