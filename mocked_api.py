@@ -88,6 +88,7 @@ async def get_application(email=None, telegram_id=None, discord_id=None) -> List
 
 @app.post("/applications")
 async def post_application(application: Application) -> Application:
+    print(application)
     created_application = create_application(application)
     return created_application
 
