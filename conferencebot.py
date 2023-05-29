@@ -63,7 +63,10 @@ def build_application_description(application):
     if len(application.coauthors):
         description += f"<b>Соавторы:</b>\n"
         for coauthor in application.coauthors:
-            description += f"\t{coauthor['name']} {coauthor['surname']} {coauthor['patronymic']}\n"
+            description += f"\t{coauthor['name']} {coauthor['surname']}"
+            if 'patronymic' in coauthor:
+                description += coauthor['patronymic']
+            description += "\n"
     return description
 
 
@@ -80,7 +83,7 @@ def show_application(user_id):
     msg += build_application_description(user_data[user_id].application)
     bot.send_message(user_id, msg, parse_mode="html", reply_markup=markup)
 
-# Проверить на несколько заявок
+
 def show_user_applications(user_id, applications):
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     back_to_main_manu_button = types.KeyboardButton("В главное меню")
@@ -111,6 +114,17 @@ def remove_coauthor(call):
     del user_data[call.from_user.id].application.coauthors[int(call.data)]
     show_application(call.from_user.id)
     bot.delete_state(call.from_user.id, call.message.chat.id)
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback(call):
+    if call.data == 'skip_patronymic':
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=types.InlineKeyboardMarkup())
+        bot.send_message(call.message.chat.id, "Введите ваш email. Например example@yandex.ru")
+        bot.register_next_step_handler(call.message, get_email)
+    if call.data == 'skip_coauthor_patronymic':
+        user_data[call.from_user.id].application.coauthors \
+            .append(user_data[call.from_user.id].coauthor)
+        show_application(call.from_user.id)
 
 
 @bot.message_handler(content_types=['text'])
@@ -227,13 +241,16 @@ def get_surname(message):
                             'Попробуйте еще раз')
         user_data[message.from_user.id].application.surname = message.text
 
-        bot.send_message(message.chat.id, "Введите ваше отчество (при наличии)")
+        markup = types.InlineKeyboardMarkup()
+        skip_patronymic_button = types.InlineKeyboardButton("Отчество отсутствует", callback_data='skip_patronymic')
+        markup.add(skip_patronymic_button)
+
+        bot.send_message(message.chat.id, "Введите ваше отчество", reply_markup=markup)
         bot.register_next_step_handler(message, get_patronymic)
     except Exception as ex:
         bot.send_message(message.chat.id, ex)
         bot.register_next_step_handler(message, get_surname)
 
-# Что если нет отчества?
 def get_patronymic(message):
     try:
         if len(message.text) and not message.text.isalpha():
@@ -295,13 +312,17 @@ def get_coauthor_surname(message):
                             'Попробуйте еще раз')
         user_data[message.from_user.id].coauthor['surname'] = message.text
 
-        bot.send_message(message.chat.id, "Введите отчество соавтора")
+        markup = types.InlineKeyboardMarkup()
+        skip_patronymic_button = types.InlineKeyboardButton("Отчество отсутствует", callback_data='skip_coauthor_patronymic')
+        markup.add(skip_patronymic_button)
+
+        bot.send_message(message.chat.id, "Введите отчество соавтора", reply_markup=markup)
         bot.register_next_step_handler(message, get_coauthor_patronymic)
     except Exception as ex:
         bot.send_message(message.chat.id, ex)
         bot.register_next_step_handler(message, get_coauthor_surname)
 
-# что если нет отчества?
+
 def get_coauthor_patronymic(message):
     try:
         if not message.text.isalpha():
@@ -310,6 +331,7 @@ def get_coauthor_patronymic(message):
         user_data[message.from_user.id].coauthor['patronymic'] = message.text
         user_data[message.from_user.id].application.coauthors \
             .append(user_data[message.from_user.id].coauthor)
+
         show_application(message.from_user.id)
     except Exception as ex:
         bot.send_message(message.chat.id, ex)
