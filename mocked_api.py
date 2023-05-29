@@ -8,7 +8,7 @@ import numpy as np
 class Coauthor(BaseModel):
     name: str
     surname: str
-    patronymic: str
+    patronymic: Union[str, None]
 
 class Application(BaseModel):
     id: Union[int, None] = None
@@ -18,7 +18,7 @@ class Application(BaseModel):
     phone: str
     name: str
     surname: str
-    patronymic: str
+    patronymic: Union[str, None]
     university: str
     student_group: str
     title: str

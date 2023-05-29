@@ -42,60 +42,61 @@ state_storage = StateMemoryStorage()
 bot = telebot.TeleBot(config.TOKEN, state_storage=state_storage)
 
 
-def main_menu(user_id, msg):
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-    create_button = types.KeyboardButton("Создать")
-    list_button = types.KeyboardButton("Список моих заявок")
+def main_menu(user_id, chat_id, msg):
+    markup = types.InlineKeyboardMarkup()
+    create_button = types.InlineKeyboardButton('Создать', callback_data='create')
+    list_button = types.InlineKeyboardButton('Список моих заявок', callback_data='application_list')
     markup.add(create_button, list_button)
-
+    bot.delete_state(user_id, chat_id)
     bot.send_message(user_id, msg, reply_markup=markup)
 
 def build_application_description(application):
-    description = (f"<b>Тема:</b> {application.title}\n"
-                f"<b>Советник:</b> {application.adviser}\n"
-                f"<b>Университет:</b> {application.university}\n"
-                f"<b>Группа:</b> {application.student_group}\n"
-                f"<b>Имя:</b> {application.name}\n"
-                f"<b>Фамилия:</b> {application.surname}\n"
-                f"<b>Отчество:</b> {application.patronymic}\n"
-                f"<b>Email:</b> {application.email}\n"
-                f"<b>Телефон:</b> {application.phone}\n")
+    description = (f'<b>Тема:</b> {application.title}\n'
+                f'<b>Советник:</b> {application.adviser}\n'
+                f'<b>Университет:</b> {application.university}\n'
+                f'<b>Группа:</b> {application.student_group}\n'
+                f'<b>Имя:</b> {application.name}\n'
+                f'<b>Фамилия:</b> {application.surname}\n')
+    if application.patronymic:
+        description += f'<b>Отчество:</b> {application.patronymic}\n'
+    description += (f'<b>Email:</b> {application.email}\n'
+                    f'<b>Телефон:</b> {application.phone}\n')
     if len(application.coauthors):
-        description += f"<b>Соавторы:</b>\n"
+        description += f'<b>Соавторы:</b>\n'
         for coauthor in application.coauthors:
-            description += f"\t{coauthor['name']} {coauthor['surname']}"
-            if 'patronymic' in coauthor:
+            description += f'\t{coauthor["name"]} {coauthor["surname"]}'
+            if 'patronymic' in coauthor and coauthor['patronymic'] is not None:
                 description += coauthor['patronymic']
-            description += "\n"
+            description += '\n'
     return description
 
 
 def show_application(user_id):
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-    post_button = types.KeyboardButton("Отправить заявку")
-    delete_button = types.KeyboardButton("Удалить черновик")
-    add_coauthor_button = types.KeyboardButton("Добавить соавтора")
-    rm_coauthor_button = types.KeyboardButton("Удалить соавтора")
-    back_to_main_manu_button = types.KeyboardButton("В главное меню")
+    markup = types.InlineKeyboardMarkup()
+    post_button = types.InlineKeyboardButton('Отправить заявку', callback_data='post_data')
+    delete_button = types.InlineKeyboardButton('Удалить черновик', callback_data='rm_data')
+    add_coauthor_button = types.InlineKeyboardButton('Добавить соавтора', callback_data='add_coauthor')
+    rm_coauthor_button = types.InlineKeyboardButton('Удалить соавтора', callback_data='rm_coauthor')
+    back_to_main_manu_button = types.InlineKeyboardButton('В главное меню', callback_data='main_menu')
     markup.add(post_button, delete_button, add_coauthor_button, rm_coauthor_button, back_to_main_manu_button)
 
-    msg = "<b>Готово, посмотрите на вашу заявку:</b>\n"
+    msg = '<b>Готово, посмотрите на ваш черновик:</b>\n'
     msg += build_application_description(user_data[user_id].application)
-    bot.send_message(user_id, msg, parse_mode="html", reply_markup=markup)
+    bot.send_message(user_id, msg, parse_mode='html', reply_markup=markup)
 
 
 def show_user_applications(user_id, applications):
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-    back_to_main_manu_button = types.KeyboardButton("В главное меню")
+    markup = types.InlineKeyboardMarkup()
+    back_to_main_manu_button = types.InlineKeyboardButton('В главное меню', callback_data='main_menu')
     for application in applications:
-        modify_button = types.KeyboardButton(f"Изменить заявку №{application.id}")
+        modify_button = types.InlineKeyboardButton(f'Изменить заявку №{application.id}', callback_data=str(application.id))
         markup.add(modify_button)
     markup.row(back_to_main_manu_button)
     msg = ''
     for application in applications:
         msg += f'<b><tg-emoji emoji-id="1">✅</tg-emoji> Заявка №{application.id}</b>\n'
         msg += build_application_description(application)
-    bot.send_message(user_id, msg, parse_mode="html", reply_markup=markup)
+    bot.send_message(user_id, msg, parse_mode='html', reply_markup=markup)
 
 
 def input_prompt(message, text, handler, markup = None):
@@ -103,15 +104,21 @@ def input_prompt(message, text, handler, markup = None):
     bot.register_next_step_handler(message, handler)
 
 
-@bot.middleware_handler(update_types=['message'])
-def set_user_data(bot_instance, message):
-    if message.from_user.id not in user_data:
-        user_data[message.from_user.id] = UserState()
+@bot.middleware_handler()
+def set_user_data(bot_instance, update):
+    user_id = 0
+    if update.callback_query:
+        user_id = update.callback_query.from_user.id
+    elif update.message:
+        user_id = update.message.from_user.id
+
+    if user_id not in user_data:
+        user_data[user_id] = UserState()
 
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    main_menu(message.from_user.id, 'Привет, с чего начнем?')
+    main_menu(message.from_user.id, message.chat.id, 'Привет, с чего начнем?')
 
 
 @bot.callback_query_handler(func=lambda call: True, state=MyStates.removing_coauthour)
@@ -122,60 +129,55 @@ def remove_coauthor(call):
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
-    if call.data == 'skip_patronymic':
-        bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=None)
-        bot.clear_step_handler(call.message)
-        input_prompt(call.message, "Введите ваш email. Например example@yandex.ru", get_email)
-    if call.data == 'skip_coauthor_patronymic':
-        user_data[call.from_user.id].application.coauthors.append(user_data[call.from_user.id].coauthor)
-        bot.clear_step_handler(call.message)
-        show_application(call.from_user.id)
-
-
-@bot.message_handler(content_types=['text'])
-def main(message):
     try:
-        if message.text == 'В главное меню':
-            main_menu(message.from_user.id, 'Вы вернулись в главное меню')
-        elif message.text == 'Создать':
-            if user_data[message.from_user.id].application:
-                show_application(message.from_user.id)
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.id)
+        if call.data == 'skip_patronymic':
+            bot.clear_step_handler(call.message)
+            input_prompt(call.message, 'Введите ваш email. Например example@yandex.ru', get_email)
+        elif call.data == 'skip_coauthor_patronymic':
+            user_data[call.from_user.id].application.coauthors.append(user_data[call.from_user.id].coauthor)
+            bot.clear_step_handler(call.message)
+            show_application(call.from_user.id)
+        elif call.data == 'main_menu':
+            main_menu(call.from_user.id, call.message.chat.id, 'Вы вернулись в главное меню')
+        elif call.data == 'create':
+            if user_data[call.from_user.id].application:
+                show_application(call.from_user.id)
             else:
-                bot.send_message(message.from_user.id, 'Введите тему')
-                bot.register_next_step_handler(message, get_title)
-        elif message.text == 'Добавить соавтора':
-            bot.send_message(message.from_user.id, 'Введите имя соавтора')
-            bot.register_next_step_handler(message, get_coauthor_name)
-        elif message.text == 'Удалить соавтора':
+                input_prompt(call.message, 'Введите тему', get_title)
+        elif call.data == 'add_coauthor':
+            input_prompt(call.message, 'Введите имя соавтора', get_coauthor_name)
+        elif call.data == 'rm_coauthor':
             markup = types.InlineKeyboardMarkup()
-            for i, coauthor in enumerate(user_data[message.from_user.id].application.coauthors):
+            for i, coauthor in enumerate(user_data[call.from_user.id].application.coauthors):
                 option = types.InlineKeyboardButton(coauthor['surname'], callback_data=str(i))
                 markup.add(option)
-            bot.send_message(message.from_user.id, 'Какого соавтора вы хотите удалить?', reply_markup=markup)
-            bot.set_state(message.from_user.id, MyStates.removing_coauthour, message.chat.id)
-        elif message.text == 'Отправить заявку':
-            user_data[message.from_user.id].application.telegram_id = message.from_user.id
+            bot.send_message(call.from_user.id, 'Какого соавтора вы хотите удалить?', reply_markup=markup)
+            bot.set_state(call.from_user.id, MyStates.removing_coauthour, call.message.chat.id)
+        elif call.data == 'post_data':
+            user_data[call.from_user.id].application.telegram_id = call.from_user.id
             response = requests.post(config.BACKEND_BASE_URL + '/applications', 
-                json=user_data[message.from_user.id].application.__dict__)
+                json=user_data[call.from_user.id].application.__dict__)
             if response.ok:
-                main_menu(message.from_user.id, 'Заявка отправлена, спасибо')
-        elif message.text == 'Удалить черновик':
-            del user_data[message.from_user.id].application
-            main_menu(message.from_user.id, 'Черновик удален, создадим новый?')
-        elif message.text == 'Список моих заявок':
+                main_menu(call.from_user.id, call.message.chat.id, 'Заявка отправлена, спасибо')
+        elif call.data == 'rm_data':
+            del user_data[call.from_user.id].application
+            main_menu(call.from_user.id, call.message.chat.id, 'Черновик удален, создадим новый?')
+        elif call.data == 'application_list':
             response = requests.get(config.BACKEND_BASE_URL + '/applications', 
                 params={
-                    'telegram_id': message.from_user.id
+                    'telegram_id': call.from_user.id
                 })
             if response.ok:
-                print(response.json())
                 applications = [Application(**data) for data in response.json()]
-                show_user_applications(message.from_user.id, applications)
+                show_user_applications(call.from_user.id, applications)
             else:
-                bot.send_message(message.from_user.id, 'Похоже, что сервер заявок не доступен')
+                bot.send_message(call.from_user.id, 'Похоже, что сервер заявок не доступен')
     except Exception as e:
         print(e)
-        main_menu(message.from_user.id, 'Бип буп, ошибка')
+        main_menu(call.from_user.id, call.message.chat.id, 'Бип буп, ошибка')
+        raise e
+
 
 ##################### Заполнение формы #####################
 def get_title(message):
@@ -231,7 +233,7 @@ def get_surname(message):
         user_data[message.from_user.id].application.surname = message.text
 
         markup = types.InlineKeyboardMarkup()
-        skip_patronymic_button = types.InlineKeyboardButton("Отчество отсутствует", callback_data='skip_patronymic')
+        skip_patronymic_button = types.InlineKeyboardButton('Отчество отсутствует', callback_data='skip_patronymic')
         markup.add(skip_patronymic_button)
         input_prompt(message, 'Введите ваше отчество', get_patronymic, markup)
     except Exception as ex:
@@ -288,7 +290,7 @@ def get_coauthor_surname(message):
         user_data[message.from_user.id].coauthor['surname'] = message.text
 
         markup = types.InlineKeyboardMarkup()
-        skip_patronymic_button = types.InlineKeyboardButton("Отчество отсутствует", callback_data='skip_coauthor_patronymic')
+        skip_patronymic_button = types.InlineKeyboardButton('Отчество отсутствует', callback_data='skip_coauthor_patronymic')
         markup.add(skip_patronymic_button)
         input_prompt(message, 'Введите отчество соавтора', get_coauthor_patronymic, markup)
     except Exception as ex:
