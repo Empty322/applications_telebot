@@ -98,6 +98,11 @@ def show_user_applications(user_id, applications):
     bot.send_message(user_id, msg, parse_mode="html", reply_markup=markup)
 
 
+def input_prompt(message, text, handler, markup = None):
+    bot.send_message(message.chat.id, text, reply_markup=markup)
+    bot.register_next_step_handler(message, handler)
+
+
 @bot.middleware_handler(update_types=['message'])
 def set_user_data(bot_instance, message):
     if message.from_user.id not in user_data:
@@ -118,12 +123,12 @@ def remove_coauthor(call):
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
     if call.data == 'skip_patronymic':
-        bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=types.InlineKeyboardMarkup())
-        bot.send_message(call.message.chat.id, "Введите ваш email. Например example@yandex.ru")
-        bot.register_next_step_handler(call.message, get_email)
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.id, reply_markup=None)
+        bot.clear_step_handler(call.message)
+        input_prompt(call.message, "Введите ваш email. Например example@yandex.ru", get_email)
     if call.data == 'skip_coauthor_patronymic':
-        user_data[call.from_user.id].application.coauthors \
-            .append(user_data[call.from_user.id].coauthor)
+        user_data[call.from_user.id].application.coauthors.append(user_data[call.from_user.id].coauthor)
+        bot.clear_step_handler(call.message)
         show_application(call.from_user.id)
 
 
@@ -176,24 +181,17 @@ def main(message):
 def get_title(message):
     user_data[message.from_user.id].application = Application()
     user_data[message.from_user.id].application.title = message.text
+    input_prompt(message, 'Введите ФИО cоветника', get_adviser)
 
-    bot.send_message(message.chat.id, 'Введите ФИО cоветника')
-    bot.register_next_step_handler(message, get_adviser)
-
-
-# проверить проверки
 def get_adviser(message):
     try:
         if not message.text.replace(' ', '').replace('.', '').isalpha():
             raise Exception('ФИО cоветника не может содержать цифры и спецсимволы\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].application.adviser = message.text
-
-        bot.send_message(message.chat.id, 'Введите ваш университет')
-        bot.register_next_step_handler(message, get_university)
+        input_prompt(message, 'Введите ваш университет', get_university)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_adviser)
+        input_prompt(message, ex, get_adviser)
 
 def get_university(message):
     try:
@@ -201,12 +199,9 @@ def get_university(message):
             raise Exception('Название университета должно содержать только буквы алфавита\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].application.university = message.text
-
-        bot.send_message(message.chat.id, 'Введите вашу группу')
-        bot.register_next_step_handler(message, get_group)
+        input_prompt(message, 'Введите вашу группу', get_group)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_university)
+        input_prompt(message, ex, get_university)
 
 def get_group(message):
     try:
@@ -214,12 +209,9 @@ def get_group(message):
             raise Exception('Номер группы может содержать только буквы алфавита или цифры\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].application.student_group = message.text
-
-        bot.send_message(message.chat.id, 'Введите ваше имя')
-        bot.register_next_step_handler(message, get_name)
+        input_prompt(message, 'Введите ваше имя', get_name)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_group)
+        input_prompt(message, ex, get_group)
 
 def get_name(message):
     try:
@@ -227,12 +219,9 @@ def get_name(message):
             raise Exception('Имя может содержать только буквы алфавита\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].application.name = message.text
-
-        bot.send_message(message.chat.id, 'Введите вашу фамилию')
-        bot.register_next_step_handler(message, get_surname)
+        input_prompt(message, 'Введите вашу фамилию', get_surname)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_name)
+        input_prompt(message, ex, get_name)
  
 def get_surname(message):
     try:
@@ -244,12 +233,9 @@ def get_surname(message):
         markup = types.InlineKeyboardMarkup()
         skip_patronymic_button = types.InlineKeyboardButton("Отчество отсутствует", callback_data='skip_patronymic')
         markup.add(skip_patronymic_button)
-
-        bot.send_message(message.chat.id, "Введите ваше отчество", reply_markup=markup)
-        bot.register_next_step_handler(message, get_patronymic)
+        input_prompt(message, 'Введите ваше отчество', get_patronymic, markup)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_surname)
+        input_prompt(message, ex, get_surname)
 
 def get_patronymic(message):
     try:
@@ -257,12 +243,9 @@ def get_patronymic(message):
             raise Exception('Отчество может содержать только буквы алфавита\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].application.patronymic = message.text
-
-        bot.send_message(message.chat.id, "Введите ваш email. Например example@yandex.ru")
-        bot.register_next_step_handler(message, get_email)
+        input_prompt(message, 'Введите ваш email. Например example@yandex.ru', get_email)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_patronymic)
+        input_prompt(message, ex, get_patronymic)
 
 def get_email(message):
     try:
@@ -270,12 +253,9 @@ def get_email(message):
             raise Exception('Неверный формат email адреса\n' +
                             'Попробуйте еще раз')
         user_data[message.from_user.id].application.email = message.text
-
-        bot.send_message(message.chat.id, "Введите ваш номер телефона. Например 89999999999")
-        bot.register_next_step_handler(message, get_phone)
+        input_prompt(message, 'Введите ваш номер телефона. Например 89999999999', get_phone)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_email)
+        input_prompt(message, ex, get_email)
 
 def get_phone(message):
     try:
@@ -285,8 +265,7 @@ def get_phone(message):
         user_data[message.from_user.id].application.phone = message.text
         show_application(message.from_user.id)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_phone)
+        input_prompt(message, ex, get_phone)
 
 ##################### Добавление соавтора #####################
 
@@ -297,13 +276,9 @@ def get_coauthor_name(message):
                             'Попробуйте еще раз')
         user_data[message.from_user.id].coauthor = {}
         user_data[message.from_user.id].coauthor['name'] = message.text
-
-        bot.send_message(message.chat.id, "Введите фамилию соавтора")
-        bot.register_next_step_handler(message, get_coauthor_surname)
+        input_prompt(message, 'Введите фамилию соавтора', get_coauthor_surname)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_coauthor_name)
-
+        input_prompt(message, ex, get_coauthor_name)
 
 def get_coauthor_surname(message):
     try:
@@ -315,13 +290,9 @@ def get_coauthor_surname(message):
         markup = types.InlineKeyboardMarkup()
         skip_patronymic_button = types.InlineKeyboardButton("Отчество отсутствует", callback_data='skip_coauthor_patronymic')
         markup.add(skip_patronymic_button)
-
-        bot.send_message(message.chat.id, "Введите отчество соавтора", reply_markup=markup)
-        bot.register_next_step_handler(message, get_coauthor_patronymic)
+        input_prompt(message, 'Введите отчество соавтора', get_coauthor_patronymic, markup)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_coauthor_surname)
-
+        input_prompt(message, ex, get_coauthor_surname)
 
 def get_coauthor_patronymic(message):
     try:
@@ -334,9 +305,8 @@ def get_coauthor_patronymic(message):
 
         show_application(message.from_user.id)
     except Exception as ex:
-        bot.send_message(message.chat.id, ex)
-        bot.register_next_step_handler(message, get_coauthor_patronymic)
-    
+        input_prompt(message, ex, get_coauthor_patronymic)
+
 
 bot.add_custom_filter(custom_filters.StateFilter(bot))
 bot.infinity_polling()
