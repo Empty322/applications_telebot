@@ -55,20 +55,21 @@ def show_application(user_id):
     back_to_main_manu_button = types.InlineKeyboardButton("В главное меню", callback_data='main_menu')
     markup.add(post_button, delete_button, add_coauthor_button, rm_coauthor_button, back_to_main_manu_button)
 
-    msg = ("Ready, take a look:\n"
-            f"Title: {user_data[user_id].application.title}\n"
-            f"Advisor: {user_data[user_id].application.adviser}\n"
-            f"University: {user_data[user_id].application.university}\n"
-            f"Group: {user_data[user_id].application.student_group}\n"
-            f"Name: {user_data[user_id].application.name}\n"
-            f"Surname: {user_data[user_id].application.surname}\n"
-            f"Patronymic: {user_data[user_id].application.patronymic}\n"
+    msg = ("Готово, посмотрите на вашу заявку:\n"
+            f"Тема: {user_data[user_id].application.title}\n"
+            f"Советник: {user_data[user_id].application.adviser}\n"
+            f"Университет: {user_data[user_id].application.university}\n"
+            f"Группа: {user_data[user_id].application.student_group}\n"
+            f"Имя: {user_data[user_id].application.name}\n"
+            f"Фамилия: {user_data[user_id].application.surname}\n"
+            f"Отчество: {user_data[user_id].application.patronymic}\n"
             f"Email: {user_data[user_id].application.email}\n"
-            f"Phone: {user_data[user_id].application.phone}\n")
+            f"Телефон: {user_data[user_id].application.phone}\n")
     if len(user_data[user_id].application.coauthors):
-        msg += f"Соавторы: \n"
+        msg += f"Соавторы: <ul>\n"
         for coauthor in user_data[user_id].application.coauthors:
-            msg += f"\t{coauthor['name']} {coauthor['surname']} {coauthor['patronymic']}\n"
+            msg += f"<li>{coauthor['name']} {coauthor['surname']} {coauthor['patronymic']}</li>\n"
+        mst += '</ul>'
     bot.send_message(user_id, msg, parse_mode="html", reply_markup=markup)
 
 @bot.middleware_handler(update_types=['message'])
@@ -105,19 +106,16 @@ def callback_inline(call):
         elif call.data == 'rm_coauthor':
             markup = types.InlineKeyboardMarkup()
             for i, coauthor in enumerate(user_data[call.from_user.id].application.coauthors):
-                print(i)
                 option = types.InlineKeyboardButton(coauthor['surname'], callback_data=str(i))
                 markup.add(option)
             bot.send_message(call.from_user.id, 'Какого соавтора вы хотите удалить?', reply_markup=markup)
             bot.set_state(call.from_user.id, MyStates.removing_coauthour, call.message.chat.id)
-
         elif call.data == 'post_application':
             user_data[call.from_user.id].application.telegram_id = call.from_user.id
             response = requests.post(config.BACKEND_BASE_URL + '/applications', 
                 json=user_data[call.from_user.id].application.__dict__)
             if response.status_code == 200:
                 bot.send_message(call.from_user.id, 'Спасибо за заявку')
-
         elif call.data == 'delete_data':
             del user_data[call.from_user.id].application
             main_menu(call.from_user.id)
@@ -126,7 +124,6 @@ def callback_inline(call):
                 params={
                     'telegram_id': call.from_user.id
                 })
-            print(response.json())
 
 ##################### Заполнение формы #####################
 
