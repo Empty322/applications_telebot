@@ -25,8 +25,8 @@ class Application(BaseModel):
     adviser: str
     coauthors: List[Coauthor]
 
-data = np.array([
-    {
+data = [
+    Application.parse_obj({
         "id": 1,
         "telegram_id": 1008218722,
         "discord_id": 0,
@@ -51,27 +51,30 @@ data = np.array([
                 "patronymic": "Petrovich2"
             }
         ]
-    }
-])
+    })
+]
 
 def find_application(email, telegram_id, discord_id):
     if email:
-        return [item for item in data if item['email'] == email]
+        return [item for item in data if item.email == email]
     elif telegram_id:
-        return [item for item in data if item['telegram_id'] == int(telegram_id)]
+        return [item for item in data if item.telegram_id == int(telegram_id)]
     elif discord_id:
-        return [item for item in data if item['discord_id'] == int(discord_id)]
+        return [item for item in data if item.discord_id == int(discord_id)]
+    return []
 
 def create_application(application):
-    ids = [item['id'] for item in data]
+    ids = [item.id for item in data]
     max_id = np.amax(np.array(ids))
     application.id = max_id + 1
-    np.append(data, application)
+    data.append(application)
     return application
 
+# проверить
 def update_application(application):
-    data = [item for item in data if item['id'] == application.id]
-    np.append(data, application)
+    to_delete = next(filter(lambda item: item.id == application.id, data))
+    del data[data.index(to_delete)]
+    data.append(application)
     return application
 
 
@@ -84,6 +87,7 @@ async def get_application(email=None, telegram_id=None, discord_id=None) -> List
     if not email and not telegram_id and not discord_id:
         raise HTTPException(status_code=400, detail="none of the parameters are specified")
     result = find_application(email, telegram_id, discord_id)
+    print(result)
     return result
 
 @app.post("/applications")
