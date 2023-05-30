@@ -15,40 +15,41 @@ class Application:
         self.id = 0
         self.telegram_id = 0
         self.discord_id = 0
-        self.email = ''
-        self.phone = ''
+        self.title = ''
+        self.adviser = ''
+        self.university = ''
+        self.student_group = ''
         self.name = ''
         self.surname = ''
         self.patronymic = ''
-        self.university = ''
-        self.student_group = ''
-        self.title = ''
-        self.adviser = ''
+        self.email = ''
+        self.phone = ''
         self.coauthors = []
-
         self.__dict__.update(entries)
 
 class UserState:
     def __init__(self):
         self.application = None
         self.coauthor = {}
+        self.posted_applications = None
 
 class MyStates(StatesGroup):
     removing_coauthour = State()
+    creating_application = State()
+    application_list = State()
 
 user_data = {}
 
 state_storage = StateMemoryStorage()
 bot = telebot.TeleBot(config.TOKEN, state_storage=state_storage)
 
-
 def main_menu(user_id, chat_id, msg):
     markup = types.InlineKeyboardMarkup()
     create_button = types.InlineKeyboardButton('Создать', callback_data='create')
     list_button = types.InlineKeyboardButton('Список моих заявок', callback_data='application_list')
     markup.add(create_button, list_button)
-    bot.delete_state(user_id, chat_id)
     bot.send_message(user_id, msg, reply_markup=markup)
+    bot.delete_state(user_id, chat_id)
 
 def build_application_description(application):
     description = (f'<b>Тема:</b> {application.title}\n'
@@ -64,7 +65,7 @@ def build_application_description(application):
     if len(application.coauthors):
         description += f'<b>Соавторы:</b>\n'
         for coauthor in application.coauthors:
-            description += f'\t{coauthor["name"]} {coauthor["surname"]}'
+            description += f'\t{coauthor["name"]} {coauthor["surname"]} '
             if 'patronymic' in coauthor and coauthor['patronymic'] is not None:
                 description += coauthor['patronymic']
             description += '\n'
@@ -85,23 +86,24 @@ def show_application(user_id):
     bot.send_message(user_id, msg, parse_mode='html', reply_markup=markup)
 
 
-def show_user_applications(user_id, applications):
+def show_user_applications(user_id, chat_id):
     markup = types.InlineKeyboardMarkup()
     back_to_main_manu_button = types.InlineKeyboardButton('В главное меню', callback_data='main_menu')
-    for application in applications:
+    for application in user_data[user_id].applications:
         modify_button = types.InlineKeyboardButton(f'Изменить заявку №{application.id}', callback_data=str(application.id))
         markup.add(modify_button)
     markup.row(back_to_main_manu_button)
     msg = ''
-    for application in applications:
+    for application in user_data[user_id].applications:
         msg += f'<b><tg-emoji emoji-id="1">✅</tg-emoji> Заявка №{application.id}</b>\n'
         msg += build_application_description(application)
     bot.send_message(user_id, msg, parse_mode='html', reply_markup=markup)
+    bot.set_state(user_id, MyStates.application_list, chat_id)
 
 
 def input_prompt(message, text, handler, markup = None):
-    bot.send_message(message.chat.id, text, reply_markup=markup)
-    bot.register_next_step_handler(message, handler)
+    bot_message = bot.send_message(message.chat.id, text, reply_markup=markup)
+    bot.register_next_step_handler(message, handler, [bot_message])
 
 
 @bot.middleware_handler()
@@ -122,13 +124,14 @@ def start(message):
 
 
 @bot.callback_query_handler(func=lambda call: True, state=MyStates.removing_coauthour)
-def remove_coauthor(call):
+def remove_coauthor_callback_handler(call):
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.id)
     del user_data[call.from_user.id].application.coauthors[int(call.data)]
     show_application(call.from_user.id)
-    bot.delete_state(call.from_user.id, call.message.chat.id)
+    bot.set_state(call.from_user.id, MyStates.creating_application, call.message.chat.id)
 
-@bot.callback_query_handler(func=lambda call: True)
-def handle_callback(call):
+@bot.callback_query_handler(func=lambda call: True, state=MyStates.creating_application)
+def creating_application_callback_handler(call):
     try:
         bot.edit_message_reply_markup(call.message.chat.id, call.message.id)
         if call.data == 'skip_patronymic':
@@ -140,11 +143,6 @@ def handle_callback(call):
             show_application(call.from_user.id)
         elif call.data == 'main_menu':
             main_menu(call.from_user.id, call.message.chat.id, 'Вы вернулись в главное меню')
-        elif call.data == 'create':
-            if user_data[call.from_user.id].application:
-                show_application(call.from_user.id)
-            else:
-                input_prompt(call.message, 'Введите тему', get_title)
         elif call.data == 'add_coauthor':
             input_prompt(call.message, 'Введите имя соавтора', get_coauthor_name)
         elif call.data == 'rm_coauthor':
@@ -163,14 +161,50 @@ def handle_callback(call):
         elif call.data == 'rm_data':
             del user_data[call.from_user.id].application
             main_menu(call.from_user.id, call.message.chat.id, 'Черновик удален, создадим новый?')
+    except Exception as e:
+        print(e)
+        main_menu(call.from_user.id, call.message.chat.id, 'Бип буп, ошибка')
+        raise e
+
+@bot.callback_query_handler(func=lambda call: True, state=MyStates.application_list)
+def application_list_callback_handler(call):
+    try:
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.id)
+        if call.data == 'main_menu':
+            main_menu(call.from_user.id, call.message.chat.id, 'Вы вернулись в главное меню')
+        elif int(call.data):
+            user_data[call.from_user.id].edited_application = \
+                next(application for application in user_data[call.from_user.id].applications if application.id == int(call.data))
+            markup = types.ReplyKeyboardMarkup()
+            skip_patronymic_button = types.KeyboardButton(user_data[call.from_user.id].edited_application.title)
+            markup.add(skip_patronymic_button)
+            input_prompt(call.message, 'Введите тему', get_title)
+
+    except Exception as e:
+        print(e)
+        main_menu(call.from_user.id, call.message.chat.id, 'Бип буп, ошибка')
+        raise e
+
+@bot.callback_query_handler(func=lambda call: True)
+def main_callback_handler(call):
+    try:
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.id)
+        if call.data == 'main_menu':
+            main_menu(call.from_user.id, call.message.chat.id, 'Вы вернулись в главное меню')
+        elif call.data == 'create':
+            if user_data[call.from_user.id].application:
+                show_application(call.from_user.id)
+            else:
+                input_prompt(call.message, 'Введите тему', get_title)
+            bot.set_state(call.from_user.id, MyStates.creating_application, call.message.chat.id)
         elif call.data == 'application_list':
             response = requests.get(config.BACKEND_BASE_URL + '/applications', 
                 params={
                     'telegram_id': call.from_user.id
                 })
             if response.ok:
-                applications = [Application(**data) for data in response.json()]
-                show_user_applications(call.from_user.id, applications)
+                user_data[call.from_user.id].applications = [Application(**data) for data in response.json()]
+                show_user_applications(call.from_user.id, call.message.chat.id)
             else:
                 bot.send_message(call.from_user.id, 'Похоже, что сервер заявок не доступен')
     except Exception as e:
@@ -180,12 +214,12 @@ def handle_callback(call):
 
 
 ##################### Заполнение формы #####################
-def get_title(message):
+def get_title(message, bot_message):
     user_data[message.from_user.id].application = Application()
     user_data[message.from_user.id].application.title = message.text
     input_prompt(message, 'Введите ФИО cоветника', get_adviser)
 
-def get_adviser(message):
+def get_adviser(message, bot_message):
     try:
         if not message.text.replace(' ', '').replace('.', '').isalpha():
             raise Exception('ФИО cоветника не может содержать цифры и спецсимволы\n' + 
@@ -195,7 +229,7 @@ def get_adviser(message):
     except Exception as ex:
         input_prompt(message, ex, get_adviser)
 
-def get_university(message):
+def get_university(message, bot_message):
     try:
         if not message.text.replace(' ', '').isalpha():
             raise Exception('Название университета должно содержать только буквы алфавита\n' + 
@@ -205,7 +239,7 @@ def get_university(message):
     except Exception as ex:
         input_prompt(message, ex, get_university)
 
-def get_group(message):
+def get_group(message, bot_message):
     try:
         if not message.text.replace(' ', '').isalnum():
             raise Exception('Номер группы может содержать только буквы алфавита или цифры\n' + 
@@ -215,7 +249,7 @@ def get_group(message):
     except Exception as ex:
         input_prompt(message, ex, get_group)
 
-def get_name(message):
+def get_name(message, bot_message):
     try:
         if not message.text.isalpha():
             raise Exception('Имя может содержать только буквы алфавита\n' + 
@@ -225,7 +259,7 @@ def get_name(message):
     except Exception as ex:
         input_prompt(message, ex, get_name)
  
-def get_surname(message):
+def get_surname(message, bot_message):
     try:
         if not message.text.isalpha():
             raise Exception('Фамилия может содержать только буквы алфавита\n' + 
@@ -239,17 +273,19 @@ def get_surname(message):
     except Exception as ex:
         input_prompt(message, ex, get_surname)
 
-def get_patronymic(message):
+def get_patronymic(message, bot_message):
     try:
         if len(message.text) and not message.text.isalpha():
             raise Exception('Отчество может содержать только буквы алфавита\n' + 
                             'Попробуйте еще раз')
+        
+        bot.edit_message_reply_markup(message.chat.id, bot_message.id)
         user_data[message.from_user.id].application.patronymic = message.text
         input_prompt(message, 'Введите ваш email. Например example@yandex.ru', get_email)
     except Exception as ex:
         input_prompt(message, ex, get_patronymic)
 
-def get_email(message):
+def get_email(message, bot_message):
     try:
         if not re.match(r'([a-z]+)@([a-z]+)\.([a-z]+)', message.text):
             raise Exception('Неверный формат email адреса\n' +
@@ -259,7 +295,7 @@ def get_email(message):
     except Exception as ex:
         input_prompt(message, ex, get_email)
 
-def get_phone(message):
+def get_phone(message, bot_message):
     try:
         if len(message.text) != 11 or not message.text.isdigit():
             raise Exception('Неверный формат email адреса\n' +
@@ -271,7 +307,7 @@ def get_phone(message):
 
 ##################### Добавление соавтора #####################
 
-def get_coauthor_name(message):
+def get_coauthor_name(message, bot_message):
     try:
         if not message.text.isalpha():
             raise Exception('Имя может содержать только буквы алфавита\n' + 
@@ -282,7 +318,7 @@ def get_coauthor_name(message):
     except Exception as ex:
         input_prompt(message, ex, get_coauthor_name)
 
-def get_coauthor_surname(message):
+def get_coauthor_surname(message, bot_message):
     try:
         if not message.text.isalpha():
             raise Exception('Фамилия может содержать только буквы алфавита\n' + 
@@ -296,11 +332,13 @@ def get_coauthor_surname(message):
     except Exception as ex:
         input_prompt(message, ex, get_coauthor_surname)
 
-def get_coauthor_patronymic(message):
+def get_coauthor_patronymic(message, bot_message):
     try:
         if not message.text.isalpha():
             raise Exception('Отчество может содержать только буквы алфавита\n' + 
                             'Попробуйте еще раз')
+
+        bot.edit_message_reply_markup(message.chat.id, bot_message.id)
         user_data[message.from_user.id].coauthor['patronymic'] = message.text
         user_data[message.from_user.id].application.coauthors \
             .append(user_data[message.from_user.id].coauthor)

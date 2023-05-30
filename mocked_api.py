@@ -5,6 +5,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 import numpy as np
 
+# uvicorn mocked_api:app
+
 class Coauthor(BaseModel):
     name: str
     surname: str
