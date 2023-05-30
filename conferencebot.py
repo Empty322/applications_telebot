@@ -32,9 +32,11 @@ class UserState:
         self.application = None
         self.coauthor = {}
         self.posted_applications = None
+        self.edited_application = None
 
 class MyStates(StatesGroup):
     removing_coauthour = State()
+    removing_edited_coauthour = State()
     creating_application = State()
     application_list = State()
 
@@ -72,7 +74,7 @@ def build_application_description(application):
     return description
 
 
-def show_application(user_id):
+def show_application(user_id, application):
     markup = types.InlineKeyboardMarkup()
     post_button = types.InlineKeyboardButton('Отправить заявку', callback_data='post_data')
     delete_button = types.InlineKeyboardButton('Удалить черновик', callback_data='rm_data')
@@ -82,19 +84,30 @@ def show_application(user_id):
     markup.add(post_button, delete_button, add_coauthor_button, rm_coauthor_button, back_to_main_manu_button)
 
     msg = '<b>Готово, посмотрите на ваш черновик:</b>\n'
-    msg += build_application_description(user_data[user_id].application)
+    msg += build_application_description(application)
     bot.send_message(user_id, msg, parse_mode='html', reply_markup=markup)
 
+def show_edited_application(user_id, application):
+    markup = types.InlineKeyboardMarkup()
+    update_button = types.InlineKeyboardButton('Сохранить', callback_data='update_data')
+    add_coauthor_button = types.InlineKeyboardButton('Добавить соавтора', callback_data='add_coauthor')
+    rm_coauthor_button = types.InlineKeyboardButton('Удалить соавтора', callback_data='rm_coauthor')
+    back_to_main_manu_button = types.InlineKeyboardButton('Отменить редактирование', callback_data='main_menu')
+    markup.add(update_button, add_coauthor_button, rm_coauthor_button, back_to_main_manu_button)
+
+    msg = '<b>Готово, посмотрите на вашу заявку:</b>\n'
+    msg += build_application_description(application)
+    bot.send_message(user_id, msg, parse_mode='html', reply_markup=markup)
 
 def show_user_applications(user_id, chat_id):
     markup = types.InlineKeyboardMarkup()
     back_to_main_manu_button = types.InlineKeyboardButton('В главное меню', callback_data='main_menu')
-    for application in user_data[user_id].applications:
+    for application in user_data[user_id].posted_applications:
         modify_button = types.InlineKeyboardButton(f'Изменить заявку №{application.id}', callback_data=str(application.id))
         markup.add(modify_button)
     markup.row(back_to_main_manu_button)
     msg = ''
-    for application in user_data[user_id].applications:
+    for application in user_data[user_id].posted_applications:
         msg += f'<b><tg-emoji emoji-id="1">✅</tg-emoji> Заявка №{application.id}</b>\n'
         msg += build_application_description(application)
     bot.send_message(user_id, msg, parse_mode='html', reply_markup=markup)
@@ -103,7 +116,7 @@ def show_user_applications(user_id, chat_id):
 
 def input_prompt(message, text, handler, markup = None):
     bot_message = bot.send_message(message.chat.id, text, reply_markup=markup)
-    bot.register_next_step_handler(message, handler, [bot_message])
+    bot.register_next_step_handler(message, handler, bot_message)
 
 
 @bot.middleware_handler()
@@ -127,8 +140,15 @@ def start(message):
 def remove_coauthor_callback_handler(call):
     bot.edit_message_reply_markup(call.message.chat.id, call.message.id)
     del user_data[call.from_user.id].application.coauthors[int(call.data)]
-    show_application(call.from_user.id)
+    show_application(call.from_user.id, user_data[call.from_user.id].application)
     bot.set_state(call.from_user.id, MyStates.creating_application, call.message.chat.id)
+
+@bot.callback_query_handler(func=lambda call: True, state=MyStates.removing_edited_coauthour)
+def remove_edited_coauthor_callback_handler(call):
+    bot.edit_message_reply_markup(call.message.chat.id, call.message.id)
+    del user_data[call.from_user.id].edited_application.coauthors[int(call.data)]
+    show_edited_application(call.from_user.id, user_data[call.from_user.id].edited_application)
+    bot.set_state(call.from_user.id, MyStates.application_list, call.message.chat.id)
 
 @bot.callback_query_handler(func=lambda call: True, state=MyStates.creating_application)
 def creating_application_callback_handler(call):
@@ -140,7 +160,7 @@ def creating_application_callback_handler(call):
         elif call.data == 'skip_coauthor_patronymic':
             user_data[call.from_user.id].application.coauthors.append(user_data[call.from_user.id].coauthor)
             bot.clear_step_handler(call.message)
-            show_application(call.from_user.id)
+            show_application(call.from_user.id, user_data[call.from_user.id].application)
         elif call.data == 'main_menu':
             main_menu(call.from_user.id, call.message.chat.id, 'Вы вернулись в главное меню')
         elif call.data == 'add_coauthor':
@@ -172,13 +192,38 @@ def application_list_callback_handler(call):
         bot.edit_message_reply_markup(call.message.chat.id, call.message.id)
         if call.data == 'main_menu':
             main_menu(call.from_user.id, call.message.chat.id, 'Вы вернулись в главное меню')
+        elif call.data == 'skip_patronymic':
+            bot.clear_step_handler(call.message)
+            user_data[call.from_user.id].edited_application.patronymic = ''
+            markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+            leave_as_is_button = types.KeyboardButton(user_data[call.from_user.id].edited_application.email)
+            markup.add(leave_as_is_button)
+            input_prompt(call.message, 'Введите ваш email. Например example@yandex.ru', get_new_email, markup)
+        elif call.data == 'skip_coauthor_patronymic':
+            user_data[call.from_user.id].edited_application.coauthors.append(user_data[call.from_user.id].coauthor)
+            bot.clear_step_handler(call.message)
+            show_edited_application(call.from_user.id, user_data[call.from_user.id].edited_application)
+        elif call.data == 'add_coauthor':
+            input_prompt(call.message, 'Введите имя соавтора', get_coauthor_name)
+        elif call.data == 'rm_coauthor':
+            markup = types.InlineKeyboardMarkup()
+            for i, coauthor in enumerate(user_data[call.from_user.id].edited_application.coauthors):
+                option = types.InlineKeyboardButton(coauthor['surname'], callback_data=str(i))
+                markup.add(option)
+            bot.send_message(call.from_user.id, 'Какого соавтора вы хотите удалить?', reply_markup=markup)
+            bot.set_state(call.from_user.id, MyStates.removing_edited_coauthour, call.message.chat.id)
+        elif call.data == 'update_data':
+            response = requests.put(config.BACKEND_BASE_URL + '/applications', 
+                json=user_data[call.from_user.id].edited_application.__dict__)
+            if response.ok:
+                main_menu(call.from_user.id, call.message.chat.id, 'Заявка обновлена, спасибо')
         elif int(call.data):
             user_data[call.from_user.id].edited_application = \
-                next(application for application in user_data[call.from_user.id].applications if application.id == int(call.data))
-            markup = types.ReplyKeyboardMarkup()
-            skip_patronymic_button = types.KeyboardButton(user_data[call.from_user.id].edited_application.title)
-            markup.add(skip_patronymic_button)
-            input_prompt(call.message, 'Введите тему', get_title)
+                next(application for application in user_data[call.from_user.id].posted_applications if application.id == int(call.data))
+            markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+            leave_as_is_button = types.KeyboardButton(user_data[call.from_user.id].edited_application.title)
+            markup.add(leave_as_is_button)
+            input_prompt(call.message, 'Введите тему', get_new_title, markup)
 
     except Exception as e:
         print(e)
@@ -193,7 +238,7 @@ def main_callback_handler(call):
             main_menu(call.from_user.id, call.message.chat.id, 'Вы вернулись в главное меню')
         elif call.data == 'create':
             if user_data[call.from_user.id].application:
-                show_application(call.from_user.id)
+                show_application(call.from_user.id, user_data[call.from_user.id].application)
             else:
                 input_prompt(call.message, 'Введите тему', get_title)
             bot.set_state(call.from_user.id, MyStates.creating_application, call.message.chat.id)
@@ -203,7 +248,7 @@ def main_callback_handler(call):
                     'telegram_id': call.from_user.id
                 })
             if response.ok:
-                user_data[call.from_user.id].applications = [Application(**data) for data in response.json()]
+                user_data[call.from_user.id].posted_applications = [Application(**data) for data in response.json()]
                 show_user_applications(call.from_user.id, call.message.chat.id)
             else:
                 bot.send_message(call.from_user.id, 'Похоже, что сервер заявок не доступен')
@@ -297,11 +342,17 @@ def get_email(message, bot_message):
 
 def get_phone(message, bot_message):
     try:
-        if len(message.text) != 11 or not message.text.isdigit():
-            raise Exception('Неверный формат email адреса\n' +
+        phone = message.text \
+            .replace('+7', '8') \
+            .replace('-', '') \
+            .replace(' ', '') \
+            .replace('(', '') \
+            .replace(')', '')
+        if len(phone) != 11 or not phone.isdigit():
+            raise Exception('Неверный формат номера телефона\n' +
                             'Попробуйте еще раз')
-        user_data[message.from_user.id].application.phone = message.text
-        show_application(message.from_user.id)
+        user_data[message.from_user.id].application.phone = phone
+        show_application(message.from_user.id, user_data[message.from_user.id].application)
     except Exception as ex:
         input_prompt(message, ex, get_phone)
 
@@ -340,13 +391,135 @@ def get_coauthor_patronymic(message, bot_message):
 
         bot.edit_message_reply_markup(message.chat.id, bot_message.id)
         user_data[message.from_user.id].coauthor['patronymic'] = message.text
-        user_data[message.from_user.id].application.coauthors \
-            .append(user_data[message.from_user.id].coauthor)
 
-        show_application(message.from_user.id)
+        if bot.get_state(message.from_user.id, message.chat.id) == 'MyStates:application_list':
+            user_data[message.from_user.id].edited_application.coauthors \
+                .append(user_data[message.from_user.id].coauthor)
+            show_edited_application(message.from_user.id, user_data[message.from_user.id].edited_application)
+        else:
+            user_data[message.from_user.id].application.coauthors \
+                .append(user_data[message.from_user.id].coauthor)
+            show_application(message.from_user.id, user_data[message.from_user.id].application)
     except Exception as ex:
         input_prompt(message, ex, get_coauthor_patronymic)
 
+
+##################### Обновление заявки #####################
+def get_new_title(message, bot_message):
+    user_data[message.from_user.id].edited_application.title = message.text
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+    leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.adviser)
+    markup.add(leave_as_is_button)
+    input_prompt(message, 'Введите ФИО cоветника', get_new_adviser, markup)
+
+def get_new_adviser(message, bot_message):
+    try:
+        if not message.text.replace(' ', '').replace('.', '').isalpha():
+            raise Exception('ФИО cоветника не может содержать цифры и спецсимволы\n' + 
+                            'Попробуйте еще раз')
+        user_data[message.from_user.id].edited_application.adviser = message.text
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.university)
+        markup.add(leave_as_is_button)
+        input_prompt(message, 'Введите ваш университет', get_new_university, markup)
+    except Exception as ex:
+        input_prompt(message, ex, get_new_adviser)
+
+def get_new_university(message, bot_message):
+    try:
+        if not message.text.replace(' ', '').isalpha():
+            raise Exception('Название университета должно содержать только буквы алфавита\n' + 
+                            'Попробуйте еще раз')
+        user_data[message.from_user.id].edited_application.university = message.text
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.student_group)
+        markup.add(leave_as_is_button)
+        input_prompt(message, 'Введите вашу группу', get_new_group, markup)
+    except Exception as ex:
+        input_prompt(message, ex, get_new_university)
+
+def get_new_group(message, bot_message):
+    try:
+        if not message.text.replace(' ', '').isalnum():
+            raise Exception('Номер группы может содержать только буквы алфавита или цифры\n' + 
+                            'Попробуйте еще раз')
+        user_data[message.from_user.id].edited_application.student_group = message.text
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.name)
+        markup.add(leave_as_is_button)
+        input_prompt(message, 'Введите ваше имя', get_new_name, markup)
+    except Exception as ex:
+        input_prompt(message, ex, get_new_group)
+
+def get_new_name(message, bot_message):
+    try:
+        if not message.text.isalpha():
+            raise Exception('Имя может содержать только буквы алфавита\n' + 
+                            'Попробуйте еще раз')
+        user_data[message.from_user.id].edited_application.name = message.text
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.surname)
+        markup.add(leave_as_is_button)
+        input_prompt(message, 'Введите вашу фамилию', get_new_surname, markup)
+    except Exception as ex:
+        input_prompt(message, ex, get_new_name)
+ 
+def get_new_surname(message, bot_message):
+    try:
+        if not message.text.isalpha():
+            raise Exception('Фамилия может содержать только буквы алфавита\n' + 
+                            'Попробуйте еще раз')
+        user_data[message.from_user.id].edited_application.surname = message.text
+
+        markup = types.InlineKeyboardMarkup()
+        skip_patronymic_button = types.InlineKeyboardButton('Отчество отсутствует', callback_data='skip_patronymic')
+        markup.add(skip_patronymic_button)
+        input_prompt(message, 'Введите ваше отчество', get_new_patronymic, markup)
+    except Exception as ex:
+        input_prompt(message, ex, get_new_surname)
+
+def get_new_patronymic(message, bot_message):
+    try:
+        if len(message.text) and not message.text.isalpha():
+            raise Exception('Отчество может содержать только буквы алфавита\n' + 
+                            'Попробуйте еще раз')
+        bot.edit_message_reply_markup(message.chat.id, bot_message.id)
+        user_data[message.from_user.id].edited_application.patronymic = message.text
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.email)
+        markup.add(leave_as_is_button)
+        input_prompt(message, 'Введите ваш email. Например example@yandex.ru', get_new_email, markup)
+    except Exception as ex:
+        input_prompt(message, ex, get_new_patronymic)
+
+def get_new_email(message, bot_message):
+    try:
+        if not re.match(r'([a-z]+)@([a-z]+)\.([a-z]+)', message.text):
+            raise Exception('Неверный формат email адреса\n' +
+                            'Попробуйте еще раз')
+        user_data[message.from_user.id].edited_application.email = message.text
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.phone)
+        markup.add(leave_as_is_button)
+        input_prompt(message, 'Введите ваш номер телефона. Например 89999999999', get_new_phone, markup)
+    except Exception as ex:
+        input_prompt(message, ex, get_new_email)
+
+def get_new_phone(message, bot_message):
+    try:
+        phone = message.text \
+            .replace('+7', '8') \
+            .replace('-', '') \
+            .replace(' ', '') \
+            .replace('(', '') \
+            .replace(')', '')
+        if len(phone) != 11 or not phone.isdigit():
+            raise Exception('Неверный формат номера телефона\n' +
+                            'Попробуйте еще раз')
+        user_data[message.from_user.id].edited_application.phone = phone
+        show_edited_application(message.from_user.id, user_data[message.from_user.id].edited_application)
+    except Exception as ex:
+        input_prompt(message, ex, get_new_phone)
 
 bot.add_custom_filter(custom_filters.StateFilter(bot))
 bot.infinity_polling()

@@ -75,6 +75,7 @@ def create_application(application):
 # проверить
 def update_application(application):
     to_delete = next(filter(lambda item: item.id == application.id, data))
+    print(to_delete)
     del data[data.index(to_delete)]
     data.append(application)
     return application
