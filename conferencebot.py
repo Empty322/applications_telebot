@@ -179,7 +179,7 @@ def creating_application_callback_handler(call):
             if response.ok:
                 main_menu(call.from_user.id, call.message.chat.id, 'Заявка отправлена, спасибо')
         elif call.data == 'rm_data':
-            del user_data[call.from_user.id].application
+            user_data[call.from_user.id].application = None
             main_menu(call.from_user.id, call.message.chat.id, 'Черновик удален, создадим новый?')
     except Exception as e:
         print(e)
