@@ -53,6 +53,32 @@ data = [
                 "patronymic": "Petrovich2"
             }
         ]
+    }),
+    Application.parse_obj({
+        "id": 2,
+        "telegram_id": 1008218723,
+        "discord_id": 0,
+        "email": "example@example.com",
+        "phone": "+79001234567",
+        "name": "Ivan",
+        "surname": "Ivanov",
+        "patronymic": "Ivanovich",
+        "university": "SUAI",
+        "student_group": "4031",
+        "title": "Title of the report to be submitted to the conference",
+        "adviser": "professor Sidorov A.B.",
+        "coauthors": [
+            {
+                "name": "Petr",
+                "surname": "Petrov",
+                "patronymic": "Petrovich"
+            },
+            {
+                "name": "Petr2",
+                "surname": "Petrov2",
+                "patronymic": "Petrovich2"
+            }
+        ]
     })
 ]
 
@@ -75,7 +101,6 @@ def create_application(application):
 # проверить
 def update_application(application):
     to_delete = next(filter(lambda item: item.id == application.id, data))
-    print(to_delete)
     del data[data.index(to_delete)]
     data.append(application)
     return application
@@ -90,17 +115,14 @@ async def get_application(email=None, telegram_id=None, discord_id=None) -> List
     if not email and not telegram_id and not discord_id:
         raise HTTPException(status_code=400, detail="none of the parameters are specified")
     result = find_application(email, telegram_id, discord_id)
-    print(result)
     return result
 
 @app.post("/applications")
 async def post_application(application: Application) -> Application:
-    print(application)
     created_application = create_application(application)
     return created_application
 
 @app.put("/applications")
 async def put_application(application: Application) -> Application:
-    print(application)
     updated_application = update_application(application)
     return updated_application

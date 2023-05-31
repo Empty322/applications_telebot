@@ -195,10 +195,11 @@ def application_list_callback_handler(call):
         elif call.data == 'skip_patronymic':
             bot.clear_step_handler(call.message)
             user_data[call.from_user.id].edited_application.patronymic = ''
+            input_prompt(call.message, 'Введите ваш email. Например example@yandex.ru', get_new_email)
             markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
             leave_as_is_button = types.KeyboardButton(user_data[call.from_user.id].edited_application.email)
             markup.add(leave_as_is_button)
-            input_prompt(call.message, 'Введите ваш email. Например example@yandex.ru', get_new_email, markup)
+            bot.send_message(call.message.chat.id, 'Или выберите уже имеющийся', reply_markup=markup)
         elif call.data == 'skip_coauthor_patronymic':
             user_data[call.from_user.id].edited_application.coauthors.append(user_data[call.from_user.id].coauthor)
             bot.clear_step_handler(call.message)
@@ -220,10 +221,12 @@ def application_list_callback_handler(call):
         elif int(call.data):
             user_data[call.from_user.id].edited_application = \
                 next(application for application in user_data[call.from_user.id].posted_applications if application.id == int(call.data))
+            input_prompt(call.message, 'Введите тему', get_new_title)
+
             markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
             leave_as_is_button = types.KeyboardButton(user_data[call.from_user.id].edited_application.title)
             markup.add(leave_as_is_button)
-            input_prompt(call.message, 'Введите тему', get_new_title, markup)
+            bot.send_message(call.message.chat.id, 'Или выберите уже имеющееся', reply_markup=markup)
 
     except Exception as e:
         print(e)
@@ -407,10 +410,13 @@ def get_coauthor_patronymic(message, bot_message):
 ##################### Обновление заявки #####################
 def get_new_title(message, bot_message):
     user_data[message.from_user.id].edited_application.title = message.text
+    input_prompt(message, 'Введите ФИО cоветника', get_new_adviser)
+
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.adviser)
     markup.add(leave_as_is_button)
-    input_prompt(message, 'Введите ФИО cоветника', get_new_adviser, markup)
+    bot.send_message(message.chat.id, 'Или выберите уже имеющееся', reply_markup=markup)
+    
 
 def get_new_adviser(message, bot_message):
     try:
@@ -418,10 +424,11 @@ def get_new_adviser(message, bot_message):
             raise Exception('ФИО cоветника не может содержать цифры и спецсимволы\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].edited_application.adviser = message.text
+        input_prompt(message, 'Введите ваш университет', get_new_university)
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.university)
         markup.add(leave_as_is_button)
-        input_prompt(message, 'Введите ваш университет', get_new_university, markup)
+        bot.send_message(message.chat.id, 'Или выберите уже имеющийся', reply_markup=markup)
     except Exception as ex:
         input_prompt(message, ex, get_new_adviser)
 
@@ -431,10 +438,11 @@ def get_new_university(message, bot_message):
             raise Exception('Название университета должно содержать только буквы алфавита\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].edited_application.university = message.text
+        input_prompt(message, 'Введите вашу группу', get_new_group)
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.student_group)
         markup.add(leave_as_is_button)
-        input_prompt(message, 'Введите вашу группу', get_new_group, markup)
+        bot.send_message(message.chat.id, 'Или выберите уже имеющуюся', reply_markup=markup)
     except Exception as ex:
         input_prompt(message, ex, get_new_university)
 
@@ -444,10 +452,11 @@ def get_new_group(message, bot_message):
             raise Exception('Номер группы может содержать только буквы алфавита или цифры\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].edited_application.student_group = message.text
+        input_prompt(message, 'Введите ваше имя', get_new_name)
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.name)
         markup.add(leave_as_is_button)
-        input_prompt(message, 'Введите ваше имя', get_new_name, markup)
+        bot.send_message(message.chat.id, 'Или выберите уже имеющееся', reply_markup=markup)
     except Exception as ex:
         input_prompt(message, ex, get_new_group)
 
@@ -457,10 +466,11 @@ def get_new_name(message, bot_message):
             raise Exception('Имя может содержать только буквы алфавита\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].edited_application.name = message.text
+        input_prompt(message, 'Введите вашу фамилию', get_new_surname)
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.surname)
         markup.add(leave_as_is_button)
-        input_prompt(message, 'Введите вашу фамилию', get_new_surname, markup)
+        bot.send_message(message.chat.id, 'Или выберите уже имеющуюся', reply_markup=markup)
     except Exception as ex:
         input_prompt(message, ex, get_new_name)
  
@@ -475,6 +485,10 @@ def get_new_surname(message, bot_message):
         skip_patronymic_button = types.InlineKeyboardButton('Отчество отсутствует', callback_data='skip_patronymic')
         markup.add(skip_patronymic_button)
         input_prompt(message, 'Введите ваше отчество', get_new_patronymic, markup)
+        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.patronymic)
+        markup.add(leave_as_is_button)
+        bot.send_message(message.chat.id, 'Или выберите уже имеющееся', reply_markup=markup)
     except Exception as ex:
         input_prompt(message, ex, get_new_surname)
 
@@ -484,11 +498,12 @@ def get_new_patronymic(message, bot_message):
             raise Exception('Отчество может содержать только буквы алфавита\n' + 
                             'Попробуйте еще раз')
         bot.edit_message_reply_markup(message.chat.id, bot_message.id)
+        input_prompt(message, 'Введите ваш email. Например example@yandex.ru', get_new_email)
         user_data[message.from_user.id].edited_application.patronymic = message.text
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.email)
         markup.add(leave_as_is_button)
-        input_prompt(message, 'Введите ваш email. Например example@yandex.ru', get_new_email, markup)
+        bot.send_message(message.chat.id, 'Или выберите уже имеющийся', reply_markup=markup)
     except Exception as ex:
         input_prompt(message, ex, get_new_patronymic)
 
@@ -498,10 +513,11 @@ def get_new_email(message, bot_message):
             raise Exception('Неверный формат email адреса\n' +
                             'Попробуйте еще раз')
         user_data[message.from_user.id].edited_application.email = message.text
+        input_prompt(message, 'Введите ваш номер телефона. Например 89999999999', get_new_phone)
         markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.phone)
         markup.add(leave_as_is_button)
-        input_prompt(message, 'Введите ваш номер телефона. Например 89999999999', get_new_phone, markup)
+        bot.send_message(message.chat.id, 'Или выберите уже имеющийся', reply_markup=markup)
     except Exception as ex:
         input_prompt(message, ex, get_new_email)
 
