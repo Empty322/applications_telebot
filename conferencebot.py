@@ -55,7 +55,7 @@ def main_menu(user_id, chat_id, msg):
 
 def build_application_description(application):
     description = (f'<b>Тема:</b> {application.title}\n'
-                f'<b>Советник:</b> {application.adviser}\n'
+                f'<b>Научный руководитель:</b> {application.adviser}\n'
                 f'<b>Университет:</b> {application.university}\n'
                 f'<b>Группа:</b> {application.student_group}\n'
                 f'<b>Имя:</b> {application.name}\n'
@@ -95,7 +95,7 @@ def show_edited_application(user_id, application):
     back_to_main_manu_button = types.InlineKeyboardButton('Отменить редактирование', callback_data='main_menu')
     markup.add(update_button, add_coauthor_button, rm_coauthor_button, back_to_main_manu_button)
 
-    msg = '<b>Готово, посмотрите на вашу заявку:</b>\n'
+    msg = '<b>Перед сохранением, еще раз проверьте данные:</b>\n'
     msg += build_application_description(application)
     bot.send_message(user_id, msg, parse_mode='html', reply_markup=markup)
 
@@ -256,7 +256,6 @@ def main_callback_handler(call):
             else:
                 bot.send_message(call.from_user.id, 'Похоже, что сервер заявок не доступен')
     except Exception as e:
-        print(e)
         main_menu(call.from_user.id, call.message.chat.id, 'Бип буп, ошибка')
         raise e
 
@@ -265,12 +264,12 @@ def main_callback_handler(call):
 def get_title(message, bot_message):
     user_data[message.from_user.id].application = Application()
     user_data[message.from_user.id].application.title = message.text
-    input_prompt(message, 'Введите ФИО cоветника', get_adviser)
+    input_prompt(message, 'Введите ФИО научного руководителя', get_adviser)
 
 def get_adviser(message, bot_message):
     try:
         if not message.text.replace(' ', '').replace('.', '').isalpha():
-            raise Exception('ФИО cоветника не может содержать цифры и спецсимволы\n' + 
+            raise Exception('ФИО научного руководителя не может содержать цифры и спецсимволы\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].application.adviser = message.text
         input_prompt(message, 'Введите ваш университет', get_university)
@@ -410,7 +409,7 @@ def get_coauthor_patronymic(message, bot_message):
 ##################### Обновление заявки #####################
 def get_new_title(message, bot_message):
     user_data[message.from_user.id].edited_application.title = message.text
-    input_prompt(message, 'Введите ФИО cоветника', get_new_adviser)
+    input_prompt(message, 'Введите ФИО научного руководителя', get_new_adviser)
 
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     leave_as_is_button = types.KeyboardButton(user_data[message.from_user.id].edited_application.adviser)
@@ -421,7 +420,7 @@ def get_new_title(message, bot_message):
 def get_new_adviser(message, bot_message):
     try:
         if not message.text.replace(' ', '').replace('.', '').isalpha():
-            raise Exception('ФИО cоветника не может содержать цифры и спецсимволы\n' + 
+            raise Exception('ФИО научного руководителя не может содержать цифры и спецсимволы\n' + 
                             'Попробуйте еще раз')
         user_data[message.from_user.id].edited_application.adviser = message.text
         input_prompt(message, 'Введите ваш университет', get_new_university)
