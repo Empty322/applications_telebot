@@ -47,7 +47,7 @@ bot = telebot.TeleBot(config.TOKEN, state_storage=state_storage)
 
 def main_menu(user_id, chat_id, msg):
     markup = types.InlineKeyboardMarkup()
-    create_button = types.InlineKeyboardButton('Создать', callback_data='create')
+    create_button = types.InlineKeyboardButton('Создать заявку', callback_data='create')
     list_button = types.InlineKeyboardButton('Список моих заявок', callback_data='application_list')
     markup.add(create_button, list_button)
     bot.send_message(user_id, msg, reply_markup=markup)
@@ -126,6 +126,8 @@ def set_user_data(bot_instance, update):
         user_id = update.callback_query.from_user.id
     elif update.message:
         user_id = update.message.from_user.id
+        if telebot.util.is_command(update.message.text):
+            bot.clear_step_handler(update.message)
 
     if user_id not in user_data:
         user_data[user_id] = UserState()
@@ -535,6 +537,13 @@ def get_new_phone(message, bot_message):
         show_edited_application(message.from_user.id, user_data[message.from_user.id].edited_application)
     except Exception as ex:
         input_prompt(message, ex, get_new_phone)
+
+
+bot.set_my_commands(
+    commands=[
+        telebot.types.BotCommand("start", "Вернуться в главное меню"),
+    ],
+)
 
 bot.add_custom_filter(custom_filters.StateFilter(bot))
 bot.infinity_polling()
