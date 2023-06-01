@@ -81,7 +81,9 @@ def show_application(user_id, application):
     add_coauthor_button = types.InlineKeyboardButton('Добавить соавтора', callback_data='add_coauthor')
     rm_coauthor_button = types.InlineKeyboardButton('Удалить соавтора', callback_data='rm_coauthor')
     back_to_main_manu_button = types.InlineKeyboardButton('В главное меню', callback_data='main_menu')
-    markup.add(post_button, delete_button, add_coauthor_button, rm_coauthor_button, back_to_main_manu_button)
+    markup.add(post_button, delete_button)
+    markup.add(add_coauthor_button, rm_coauthor_button)
+    markup.add(back_to_main_manu_button)
 
     msg = '<b>Готово, посмотрите на ваш черновик:</b>\n'
     msg += build_application_description(application)
@@ -93,7 +95,9 @@ def show_edited_application(user_id, application):
     add_coauthor_button = types.InlineKeyboardButton('Добавить соавтора', callback_data='add_coauthor')
     rm_coauthor_button = types.InlineKeyboardButton('Удалить соавтора', callback_data='rm_coauthor')
     back_to_main_manu_button = types.InlineKeyboardButton('Отменить редактирование', callback_data='main_menu')
-    markup.add(update_button, add_coauthor_button, rm_coauthor_button, back_to_main_manu_button)
+    markup.add(update_button)
+    markup.add(add_coauthor_button, rm_coauthor_button)
+    markup.add(back_to_main_manu_button)
 
     msg = '<b>Перед сохранением, еще раз проверьте данные:</b>\n'
     msg += build_application_description(application)
